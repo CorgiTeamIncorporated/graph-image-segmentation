@@ -1,5 +1,6 @@
-import networkx as nx
 from typing import Optional
+
+import networkx as nx
 
 
 class PushRelabelAlgorithm:
@@ -30,12 +31,27 @@ class PushRelabelAlgorithm:
             if flow > 0:
                 self.push(u, v, flow)
 
+    def _height(self, u: int) -> int:
+        return self.graph.nodes[u]['height']
+
+    def _excess(self, u: int) -> int:
+        return self.graph.nodes[u]['excess']
+
+    def _flow(self, u: int, v: int) -> int:
+        return self.graph[u][v]['flow']
+
+    def _capacity(self, u: int, v: int) -> int:
+        return self.graph[u][v]['capacity']
+
     def _residual_capacity(self, u: int, v: int) -> int:
-        edge_data: dict = self.graph.edges[(u, v)]
-        return edge_data['capacity'] - edge_data['flow']
+        return self._capacity(u, v) - self._flow(u, v)
+
+    def _is_push_allowed(self, u: int, v: int) -> bool:
+        return (self._excess(u) > 0 and
+                self._height(u) == self._height(v) + 1)
 
     def push(self, u: int, v: int, delta: Optional[int] = None) -> None:
-        delta = delta or min(self.graph.nodes[u]['excess'],
+        delta = delta or min(self._excess(u),
                              self._residual_capacity(u, v))
 
         self.graph[u][v]['flow'] += delta
@@ -43,8 +59,22 @@ class PushRelabelAlgorithm:
         self.graph.nodes[u]['excess'] -= delta
         self.graph.nodes[v]['excess'] += delta
 
+    def _is_relabel_allowed(self, u: int) -> bool:
+        return (self._excess(u) > 0 and
+                all(self._height(u) <= self._height(v)
+                    for v in self.graph.neighbors(u)
+                    if self._residual_capacity(u, v) > 0))
+
     def relabel(self, u: int) -> None:
-        min_height: int = min(self.graph.nodes[v]['height']
+        min_height: int = min(self._height(v)
                               for v in self.graph.neighbors(u)
                               if self._residual_capacity(u, v) > 0)
         self.graph.nodes[u]['height'] = min_height + 1
+
+    def discharge(self, u: int) -> None:
+        while self._excess(u) > 0:
+            for v in self.graph.neighbors(u):
+                if self._is_push_allowed(u, v):
+                    self.push(u, v)
+
+            self.relabel(u)
