@@ -1,119 +1,208 @@
-from typing import Optional, List
+from typing import List, Optional, Union
 
 import networkx as nx
 
+__all__ = ['get_max_flow']
 
-class PushRelabelAlgorithm:
-    def __init__(self, graph: nx.DiGraph, source: int, sink: int) -> None:
-        N: int = graph.order()
-        self.source: int = source
-        self.sink: int = sink
-        self._active_nodes: List[set] = [set() for _ in range(2 * N)]
-        self._inactive_nodes: List[set] = [set() for _ in range(2 * N)]
-        self._build_residual_network(graph)
+# Applicable types for edges capacities
+numeric = Union[int, float]
 
-    def _build_residual_network(self, graph: nx.DiGraph) -> None:
-        self.graph: nx.DiGraph = nx.DiGraph()
 
-        for node in graph.nodes:
-            self.graph.add_node(node, excess=0, height=0)
-            if node != self.source and node != self.sink:
-                self._inactive_nodes[0].add(node)
+def get_max_flow(graph: nx.DiGraph, source: int, sink: int) -> numeric:
+    """
+        Calculate maximum flow of graph.
+        Push-relabel algorithm with highest label selection rule is used.
 
-        self.graph.nodes[self.source]['height'] = self.graph.order()
+        Parameters
+        ----------
+        graph : nx.Graph
+            Graph to find maximum flow in.
+        source : int
+            Source of flow.
+        sink : int
+            Sink of flow.
 
-        for (u, v), edge_data in graph.edges.items():
+        Returns
+        -------
+        flow_value : numeric
+            Value of the maximum flow.
+    """
+
+    # Number of nodes in the graph
+    nodes_num: int = graph.order()
+
+    # State of the algorithm
+    active_nodes: List[set] = [set() for _ in range(2 * nodes_num)]
+    inactive_nodes: List[set] = [set() for _ in range(2 * nodes_num)]
+
+    # Residual network of the algorithm
+    network: nx.DiGraph = graph.copy()
+
+    def get_height(u: int) -> int:
+        return network.nodes[u]['height']
+
+    def get_excess(u: int) -> numeric:
+        return network.nodes[u]['excess']
+
+    def get_residual_capacity(u: int, v: int) -> numeric:
+        return network[u][v]['capacity'] - network[u][v]['flow']
+
+    def is_push_allowed(u: int, v: int) -> bool:
+        return (get_excess(u) > 0 and
+                get_height(u) == get_height(v) + 1)
+
+    def build_residual_network() -> None:
+        """
+            Initialize algorithm by building residual network.
+            Initial flow and nodes heights are also set here.
+
+            Parameters
+            ----------
+            None.
+
+            Returns
+            -------
+            None.
+        """
+
+        nonlocal network
+
+        new_graph: nx.DiGraph = nx.DiGraph()
+
+        for node in network.nodes:
+            new_graph.add_node(node, excess=0, height=0)
+            if node != source and node != sink:
+                inactive_nodes[0].add(node)
+
+        new_graph.nodes[source]['height'] = nodes_num
+
+        for (u, v), edge_data in network.edges.items():
             capacity = edge_data['capacity']
 
-            if not self.graph.has_edge(u, v):
-                self.graph.add_edge(u, v, capacity=capacity, flow=0)
-                self.graph.add_edge(v, u, capacity=0, flow=0)
+            if not new_graph.has_edge(u, v):
+                new_graph.add_edge(u, v, capacity=capacity, flow=0)
+                new_graph.add_edge(v, u, capacity=0, flow=0)
             else:
-                self.graph[u][v]['capacity'] = capacity
+                new_graph[u][v]['capacity'] = capacity
 
-        for u, v in self.graph.edges(self.source):
-            flow = self.graph[u][v]['capacity']
+        network = new_graph.copy()
+
+        for u, v in new_graph.edges(source):
+            flow = new_graph[u][v]['capacity']
             if flow > 0:
-                self._push(u, v, flow)
+                push(u, v, flow)
 
-    def _height(self, u: int) -> int:
-        return self.graph.nodes[u]['height']
+    def push(u: int, v: int, delta: Optional[numeric] = None) -> None:
+        """
+            Apply push operation to node.
 
-    def _excess(self, u: int) -> int:
-        return self.graph.nodes[u]['excess']
+            Parameters
+            ----------
+            u : int
+                Source node to apply operation to.
+            v : int
+                Destination node to apply operation to.
+            delta : numeric
+                Value of flow to push.
+                Maximum possible value will be chosen if not specified.
 
-    def _flow(self, u: int, v: int) -> int:
-        return self.graph[u][v]['flow']
+            Returns
+            -------
+            None.
+        """
 
-    def _capacity(self, u: int, v: int) -> int:
-        return self.graph[u][v]['capacity']
+        delta = delta or min(get_excess(u),
+                             get_residual_capacity(u, v))
 
-    def _residual_capacity(self, u: int, v: int) -> int:
-        return self._capacity(u, v) - self._flow(u, v)
+        if v != source and v != sink and get_excess(v) == 0 and delta > 0:
+            height = get_height(v)
+            active_nodes[height].add(v)
+            inactive_nodes[height].remove(v)
 
-    def _is_push_allowed(self, u: int, v: int) -> bool:
-        return (self._excess(u) > 0 and
-                self._height(u) == self._height(v) + 1)
+        network[u][v]['flow'] += delta
+        network[v][u]['flow'] -= delta
+        network.nodes[u]['excess'] -= delta
+        network.nodes[v]['excess'] += delta
 
-    def _push(self, u: int, v: int, delta: Optional[int] = None) -> None:
-        delta = delta or min(self._excess(u),
-                             self._residual_capacity(u, v))
+        if get_excess(u) == 0:
+            height = get_height(u)
+            inactive_nodes[height].add(u)
+            active_nodes[height].remove(u)
 
-        if v != self.source and v != self.sink and self._excess(v) == 0 and delta > 0:
-            height = self._height(v)
-            self._active_nodes[height].add(v)
-            self._inactive_nodes[height].remove(v)
+    def relabel(u: int) -> None:
+        """
+            Apply relabel operation to node.
 
-        self.graph[u][v]['flow'] += delta
-        self.graph[v][u]['flow'] -= delta
-        self.graph.nodes[u]['excess'] -= delta
-        self.graph.nodes[v]['excess'] += delta
+            Parameters
+            ----------
+            u : int
+                Node to apply operation to.
 
-        if self._excess(u) == 0:
-            height = self._height(u)
-            self._inactive_nodes[height].add(u)
-            self._active_nodes[height].remove(u)
+            Returns
+            -------
+            None.
+        """
 
-    def _is_relabel_allowed(self, u: int) -> bool:
-        return (self._excess(u) > 0 and
-                all(self._height(u) <= self._height(v)
-                    for v in self.graph.neighbors(u)
-                    if self._residual_capacity(u, v) > 0))
+        old_height: int = get_height(u)
 
-    def _relabel(self, u: int) -> None:
-        old_height: int = self._height(u)
-
-        new_height: int = min(self._height(v)
-                              for v in self.graph.neighbors(u)
-                              if self._residual_capacity(u, v) > 0) + 1
-        self.graph.nodes[u]['height'] = new_height
+        new_height: int = min(get_height(v)
+                              for v in network.neighbors(u)
+                              if get_residual_capacity(u, v) > 0) + 1
+        network.nodes[u]['height'] = new_height
 
         if old_height != new_height:
-            if self._excess(u) == 0:
-                self._inactive_nodes[new_height].add(u)
-                self._inactive_nodes[old_height].remove(u)
+            if get_excess(u) == 0:
+                inactive_nodes[new_height].add(u)
+                inactive_nodes[old_height].remove(u)
             else:
-                self._active_nodes[new_height].add(u)
-                self._active_nodes[old_height].remove(u)
+                active_nodes[new_height].add(u)
+                active_nodes[old_height].remove(u)
 
-    def discharge(self, u: int) -> None:
-        while self._excess(u) > 0:
-            for v in self.graph.neighbors(u):
-                if self._is_push_allowed(u, v):
-                    self._push(u, v)
+    def discharge(u: int) -> None:
+        """
+            Apply push and relabel operations until node excess become zero.
 
-            self._relabel(u)
+            Parameters
+            ----------
+            u : int
+                Graph node to apply operations to.
 
-    def get_max_flow(self) -> int:
-        active_node_found = True
+            Returns
+            -------
+            None.
+        """
 
-        while active_node_found:
-            active_node_found = False
+        while get_excess(u) > 0:
+            for v in network.neighbors(u):
+                if is_push_allowed(u, v):
+                    push(u, v)
 
-            for node_set in reversed(self._active_nodes):
-                if len(node_set) != 0:
-                    active_node_found = True
-                    self.discharge(next(iter(node_set)))
-                    break
+            relabel(u)
 
-        return self._excess(self.sink)
+    def choose_next_node() -> Union[int, None]:
+        """
+            Choose next node to discharge using highest label selection rule.
+            If no active node found, None is returned.
+
+            Parameters
+            ----------
+            None.
+
+            Returns
+            -------
+            node : int
+                Next node or None.
+        """
+
+        for node_set in reversed(active_nodes):
+            if len(node_set) != 0:
+                return next(iter(node_set))
+
+        return None
+
+    build_residual_network()
+
+    while node := choose_next_node():
+        discharge(node)
+
+    return get_excess(sink)
