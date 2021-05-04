@@ -1,6 +1,8 @@
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict, Deque, Tuple
+from collections import deque
 
 import networkx as nx
+import warnings
 
 __all__ = ['get_max_flow']
 
@@ -8,7 +10,8 @@ __all__ = ['get_max_flow']
 numeric = Union[int, float]
 
 
-def get_max_flow(graph: nx.DiGraph, source: int, sink: int) -> numeric:
+def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
+                 global_relabel_freq: int) -> numeric:
     """
         Calculate maximum flow of graph.
         Push-relabel algorithm with highest label selection rule is used.
@@ -21,6 +24,9 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int) -> numeric:
             Source of flow.
         sink : int
             Sink of flow.
+        global_relabel_freq : int
+            Number of push-relabel operations between global relabelings.
+            If it is negative, global relabelings will not be used.
 
         Returns
         -------
@@ -37,6 +43,9 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int) -> numeric:
 
     # Residual network of the algorithm
     network: nx.DiGraph = graph.copy()
+
+    # Push-relabel counter
+    operation_counter: int = global_relabel_freq
 
     def get_height(u: int) -> int:
         return network.nodes[u]['height']
@@ -152,6 +161,8 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int) -> numeric:
 
         if old_height != new_height:
             if get_excess(u) == 0:
+                warnings.warn("Graph node with zero excess "
+                              "has been relabeled.")
                 inactive_nodes[new_height].add(u)
                 inactive_nodes[old_height].remove(u)
             else:
@@ -172,12 +183,17 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int) -> numeric:
             None.
         """
 
+        nonlocal operation_counter
+
         while get_excess(u) > 0:
             for v in network.neighbors(u):
                 if is_push_allowed(u, v):
                     push(u, v)
+                    operation_counter += 1
 
-            relabel(u)
+            if get_excess(u) > 0:
+                relabel(u)
+                operation_counter += 1
 
     def choose_next_node() -> Union[int, None]:
         """
@@ -194,11 +210,88 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int) -> numeric:
                 Next node or None.
         """
 
+        nonlocal operation_counter
+
+        if (global_relabel_freq > 0 and
+                operation_counter >= global_relabel_freq):
+            operation_counter = 0
+            max_height = global_relabel()
+            return next(iter(active_nodes[max_height]))
+
         for node_set in reversed(active_nodes):
             if len(node_set) != 0:
                 return next(iter(node_set))
 
         return None
+
+    def reverse_bfs(src: int) -> Dict[int, int]:
+        """
+            Perform a reverse breadth-first search from src in the residual
+            network.
+
+            Parameters
+            ----------
+            src : int
+                Source node to apply operation to.
+
+            Returns
+            -------
+            heights : dict
+                Dictionary of nodes with their heights.
+        """
+
+        heights: Dict[int, int] = {src: 0}
+        queue: Deque[Tuple[int, int]] = deque([(src, 0)])
+
+        while len(queue) > 0:
+            u, height = queue.popleft()
+            height += 1
+
+            for v in network.pred[u]:
+                if v not in heights and get_residual_capacity(v, u) > 0:
+                    heights[v] = height
+                    queue.append((v, height))
+
+        return heights
+
+    def global_relabel() -> int:
+        """
+            Apply the global relabeling heuristic.
+
+            Parameters
+            ----------
+            None.
+
+            Returns
+            -------
+            max_height : int
+                Max node height in residual flow.
+        """
+
+        heights: Dict[int, int] = reverse_bfs(sink)
+        max_height = max(heights.values())
+
+        # Mark nodes from which sink is unreachable in residual flow.
+        for u, node_data in network.nodes.items():
+            if u not in heights and node_data['height'] < nodes_num:
+                heights[u] = nodes_num + 1
+
+        del heights[sink]
+
+        for u, new_height in heights.items():
+            old_height = network.nodes[u]['height']
+
+            if new_height != old_height:
+                if u in active_nodes[old_height]:
+                    active_nodes[old_height].remove(u)
+                    active_nodes[new_height].add(u)
+                else:
+                    inactive_nodes[old_height].remove(u)
+                    inactive_nodes[new_height].add(u)
+
+                network.nodes[u]['height'] = new_height
+
+        return max_height
 
     build_residual_network()
 
