@@ -26,7 +26,7 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
             Sink of flow.
         global_relabel_freq : int
             Number of push-relabel operations between global relabelings.
-            If it less than 0, then global relabelings will not be used
+            If it is negative, global relabelings will not be used.
 
         Returns
         -------
@@ -161,8 +161,8 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
 
         if old_height != new_height:
             if get_excess(u) == 0:
-                warnings.warn("Graph node with zero excess"
-                              + "has been relabeled.")
+                warnings.warn("Graph node with zero excess "
+                              "has been relabeled.")
                 inactive_nodes[new_height].add(u)
                 inactive_nodes[old_height].remove(u)
             else:
@@ -241,17 +241,16 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
         """
 
         heights: Dict[int, int] = {src: 0}
-        q: Deque[Tuple[int, int]] = deque([(src, 0)])
+        queue: Deque[Tuple[int, int]] = deque([(src, 0)])
 
-        while len(q):
-            u, height = q.popleft()
+        while len(queue) > 0:
+            u, height = queue.popleft()
             height += 1
 
-            for v, edge_data in network.pred[u].items():
-                if (v not in heights and
-                        edge_data['flow'] < edge_data['capacity']):
+            for v in network.pred[u]:
+                if v not in heights and get_residual_capacity(v, u) > 0:
                     heights[v] = height
-                    q.append((v, height))
+                    queue.append((v, height))
 
         return heights
 
