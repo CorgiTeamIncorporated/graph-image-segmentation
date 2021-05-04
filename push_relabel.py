@@ -26,7 +26,7 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
             Sink of flow.
         global_relabel_freq : int
             Number of push-relabel operations between global relabelings.
-            If it is negative, global relabelings will not be used.
+            If it is less than 1, global relabelings will not be used.
 
         Returns
         -------
