@@ -24,14 +24,17 @@ def test_1_default_input():
 def test_2_brute_force_input():
     for seed in range(0, 100):
         for size in range(2, 100):
+            # generate random DiGraph
             graph = nx.scale_free_graph(n=size, alpha=0.15,
                                         beta=0.7, gamma=0.15, seed=seed)
             graph = nx.DiGraph(graph)
 
+            # init random capacity to edges
             dict_of_weights = {'capacity': random.random()}
             dict_of_edges_weights = {e:  dict_of_weights for e in graph.edges}
             nx.set_edge_attributes(graph, dict_of_edges_weights)
 
+            # calculate max flow value
             true_max_flow = preflow_push(graph, 0, size-1, value_only=True)
             out_max_flow = get_max_flow(graph, 0, size-1, 3)
 
