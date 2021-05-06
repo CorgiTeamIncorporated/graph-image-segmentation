@@ -212,13 +212,14 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
 
         nonlocal operation_counter
 
+        max_height = len(active_nodes)
+
         if (global_relabel_freq > 0 and
                 operation_counter >= global_relabel_freq):
             operation_counter = 0
             max_height = global_relabel()
-            return next(iter(active_nodes[max_height]))
 
-        for node_set in reversed(active_nodes):
+        for node_set in reversed(active_nodes[:max_height+1]):
             if len(node_set) != 0:
                 return next(iter(node_set))
 
