@@ -1,8 +1,8 @@
-from typing import List, Optional, Union, Dict, Deque, Tuple
 from collections import deque
+from typing import Deque, Dict, List, Optional, Tuple, Union
+
 
 import networkx as nx
-import warnings
 
 __all__ = ['get_max_flow']
 
@@ -11,7 +11,7 @@ numeric = Union[int, float]
 
 
 def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
-                 global_relabel_freq: int) -> numeric:
+                 global_relabel_freq: int = 100) -> numeric:
     """
         Calculate maximum flow of graph.
         Push-relabel algorithm with highest label selection rule is used.
@@ -39,7 +39,6 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
 
     # State of the algorithm
     active_nodes: List[set] = [set() for _ in range(2 * nodes_num)]
-    inactive_nodes: List[set] = [set() for _ in range(2 * nodes_num)]
 
     # Residual network of the algorithm
     network: nx.DiGraph = graph.copy()
@@ -80,8 +79,6 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
 
         for node in network.nodes:
             new_graph.add_node(node, excess=0, height=0)
-            if node != source and node != sink:
-                inactive_nodes[0].add(node)
 
         new_graph.nodes[source]['height'] = nodes_num
 
@@ -123,10 +120,9 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
         delta = delta or min(get_excess(u),
                              get_residual_capacity(u, v))
 
-        if v != source and v != sink and get_excess(v) == 0 and delta > 0:
+        if v not in (source, sink) and get_excess(v) == 0 and delta > 0:
             height = get_height(v)
             active_nodes[height].add(v)
-            inactive_nodes[height].remove(v)
 
         network[u][v]['flow'] += delta
         network[v][u]['flow'] -= delta
@@ -135,7 +131,6 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
 
         if get_excess(u) == 0:
             height = get_height(u)
-            inactive_nodes[height].add(u)
             active_nodes[height].remove(u)
 
     def relabel(u: int) -> None:
@@ -160,14 +155,8 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
         network.nodes[u]['height'] = new_height
 
         if old_height != new_height:
-            if get_excess(u) == 0:
-                warnings.warn("Graph node with zero excess "
-                              "has been relabeled.")
-                inactive_nodes[new_height].add(u)
-                inactive_nodes[old_height].remove(u)
-            else:
-                active_nodes[new_height].add(u)
-                active_nodes[old_height].remove(u)
+            active_nodes[new_height].add(u)
+            active_nodes[old_height].remove(u)
 
     def discharge(u: int) -> None:
         """
@@ -283,12 +272,9 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
             old_height = network.nodes[u]['height']
 
             if new_height != old_height:
-                if u in active_nodes[old_height]:
+                if get_excess(u) > 0:
                     active_nodes[old_height].remove(u)
                     active_nodes[new_height].add(u)
-                else:
-                    inactive_nodes[old_height].remove(u)
-                    inactive_nodes[new_height].add(u)
 
                 network.nodes[u]['height'] = new_height
 
