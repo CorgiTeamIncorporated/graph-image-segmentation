@@ -39,7 +39,7 @@ def test_1_default_input():
     assert get_max_flow(graph, 1, 4, 3) == 20000
 
 
-def test_3_hand_crafted_tests():
+def test_2_hand_crafted_tests():
     target_dir = os.path.join(os.getcwd(), 'tests\\push_relabel_test_inputs')
 
     for filename in os.listdir(target_dir):
