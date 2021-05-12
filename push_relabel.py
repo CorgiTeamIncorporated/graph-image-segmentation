@@ -1,6 +1,6 @@
 from collections import deque
-from typing import Deque, Dict, List, Optional, Tuple, Union
-
+from queue import PriorityQueue
+from typing import Deque, Dict, Optional, Tuple, Union
 
 import networkx as nx
 
@@ -38,7 +38,7 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
     nodes_num: int = graph.order()
 
     # State of the algorithm
-    active_nodes: List[set] = [set() for _ in range(2 * nodes_num)]
+    nodes_queue: PriorityQueue = PriorityQueue()
 
     # Residual network of the algorithm
     network: nx.DiGraph = graph.copy()
@@ -121,17 +121,12 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
                              get_residual_capacity(u, v))
 
         if v not in (source, sink) and get_excess(v) == 0 and delta > 0:
-            height = get_height(v)
-            active_nodes[height].add(v)
+            nodes_queue.put((-get_height(v), v))
 
         network[u][v]['flow'] += delta
         network[v][u]['flow'] -= delta
         network.nodes[u]['excess'] -= delta
         network.nodes[v]['excess'] += delta
-
-        if get_excess(u) == 0:
-            height = get_height(u)
-            active_nodes[height].remove(u)
 
     def relabel(u: int) -> None:
         """
@@ -147,16 +142,10 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
             None.
         """
 
-        old_height: int = get_height(u)
-
         new_height: int = min(get_height(v)
                               for v in network.neighbors(u)
                               if get_residual_capacity(u, v) > 0) + 1
         network.nodes[u]['height'] = new_height
-
-        if old_height != new_height:
-            active_nodes[new_height].add(u)
-            active_nodes[old_height].remove(u)
 
     def discharge(u: int) -> None:
         """
@@ -183,36 +172,6 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
             if get_excess(u) > 0:
                 relabel(u)
                 operation_counter += 1
-
-    def choose_next_node() -> Union[int, None]:
-        """
-            Choose next node to discharge using highest label selection rule.
-            If no active node found, None is returned.
-
-            Parameters
-            ----------
-            None.
-
-            Returns
-            -------
-            node : int
-                Next node or None.
-        """
-
-        nonlocal operation_counter
-
-        max_height = len(active_nodes)
-
-        if (global_relabel_freq > 0 and
-                operation_counter >= global_relabel_freq):
-            operation_counter = 0
-            max_height = global_relabel()
-
-        for node_set in reversed(active_nodes[:max_height+1]):
-            if len(node_set) != 0:
-                return next(iter(node_set))
-
-        return None
 
     def reverse_bfs(src: int) -> Dict[int, int]:
         """
@@ -244,7 +203,7 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
 
         return heights
 
-    def global_relabel() -> int:
+    def global_relabel() -> None:
         """
             Apply the global relabeling heuristic.
 
@@ -254,12 +213,14 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
 
             Returns
             -------
-            max_height : int
-                Max node height in residual flow.
+            None.
         """
 
+        nonlocal nodes_queue
+
+        nodes_queue = PriorityQueue()
+
         heights: Dict[int, int] = reverse_bfs(sink)
-        max_height = max(heights.values())
 
         # Mark nodes from which sink is unreachable in residual flow.
         for u, node_data in network.nodes.items():
@@ -269,16 +230,36 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
         del heights[sink]
 
         for u, new_height in heights.items():
-            old_height = network.nodes[u]['height']
+            network.nodes[u]['height'] = new_height
+            if get_excess(u) > 0:
+                nodes_queue.put((-new_height, u))
 
-            if new_height != old_height:
-                if get_excess(u) > 0:
-                    active_nodes[old_height].remove(u)
-                    active_nodes[new_height].add(u)
+    def choose_next_node() -> Union[int, None]:
+        """
+            Choose next node to discharge using highest label selection rule.
+            If no active node found, None is returned.
 
-                network.nodes[u]['height'] = new_height
+            Parameters
+            ----------
+            None.
 
-        return max_height
+            Returns
+            -------
+            node : int
+                Next node or None.
+        """
+
+        nonlocal operation_counter
+
+        if (global_relabel_freq > 0 and
+                operation_counter >= global_relabel_freq):
+            operation_counter = 0
+            global_relabel()
+
+        if not nodes_queue.empty():
+            return nodes_queue.get()[1]
+
+        return None
 
     build_residual_network()
 
