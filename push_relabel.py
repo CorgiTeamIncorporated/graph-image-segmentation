@@ -11,7 +11,7 @@ numeric = Union[int, float]
 
 
 def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
-                 global_relabel_freq: int = 100) -> numeric:
+                 global_relabeling_freq: int = 100) -> numeric:
     """
         Calculate maximum flow of graph.
         Push-relabel algorithm with highest label selection rule is used.
@@ -24,7 +24,7 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
             Source of flow.
         sink : int
             Sink of flow.
-        global_relabel_freq : int
+        global_relabeling_freq : int
             Number of push-relabel operations between global relabelings.
             If it is less than 1, global relabelings will not be used.
 
@@ -44,7 +44,7 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
     network: nx.DiGraph = graph.copy()
 
     # Push-relabel counter
-    operation_counter: int = global_relabel_freq
+    operation_counter: int = global_relabeling_freq
 
     def get_height(u: int) -> int:
         return network.nodes[u]['height']
@@ -173,37 +173,7 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
                 relabel(u)
                 operation_counter += 1
 
-    def reverse_bfs(src: int) -> Dict[int, int]:
-        """
-            Perform a reverse breadth-first search from src in the residual
-            network.
-
-            Parameters
-            ----------
-            src : int
-                Source node to apply operation to.
-
-            Returns
-            -------
-            heights : dict
-                Dictionary of nodes with their heights.
-        """
-
-        heights: Dict[int, int] = {src: 0}
-        queue: Deque[Tuple[int, int]] = deque([(src, 0)])
-
-        while len(queue) > 0:
-            u, height = queue.popleft()
-            height += 1
-
-            for v in network.pred[u]:
-                if v not in heights and get_residual_capacity(v, u) > 0:
-                    heights[v] = height
-                    queue.append((v, height))
-
-        return heights
-
-    def global_relabel() -> None:
+    def global_relabeling() -> None:
         """
             Apply the global relabeling heuristic.
 
@@ -215,6 +185,36 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
             -------
             None.
         """
+
+        def reverse_bfs(src: int) -> Dict[int, int]:
+            """
+                Perform a reverse breadth-first search from src in the residual
+                network.
+
+                Parameters
+                ----------
+                src : int
+                    Source node to apply operation to.
+
+                Returns
+                -------
+                heights : dict
+                    Dictionary of nodes with their heights.
+            """
+
+            heights: Dict[int, int] = {src: 0}
+            queue: Deque[Tuple[int, int]] = deque([(src, 0)])
+
+            while len(queue) > 0:
+                u, height = queue.popleft()
+                height += 1
+
+                for v in network.pred[u]:
+                    if v not in heights and get_residual_capacity(v, u) > 0:
+                        heights[v] = height
+                        queue.append((v, height))
+
+            return heights
 
         nonlocal nodes_queue
 
@@ -251,10 +251,10 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
 
         nonlocal operation_counter
 
-        if (global_relabel_freq > 0 and
-                operation_counter >= global_relabel_freq):
+        if (global_relabeling_freq > 0 and
+                operation_counter >= global_relabeling_freq):
             operation_counter = 0
-            global_relabel()
+            global_relabeling()
 
         if not nodes_queue.empty():
             return nodes_queue.get()[1]
