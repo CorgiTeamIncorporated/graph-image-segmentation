@@ -1,25 +1,9 @@
 import networkx as nx
 import time
 import os
+from .utils import read_graph_from_file
 from networkx.algorithms.flow import preflow_push
 from push_relabel import get_max_flow
-
-
-def read_graph_from_file(file_path: str) -> nx.DiGraph:
-    graph = nx.DiGraph()
-
-    with open(file_path, 'r') as f:
-        init_input = f.readline().split()
-        nodes_quantity, _ = list(map(int, init_input))
-
-        graph.add_nodes_from(list(range(1, nodes_quantity + 1)))
-
-        for line in f:
-            edge_input = line.split()
-            u, v, capacity = list(map(int, edge_input))
-            graph.add_edge(u, v, capacity=capacity)
-
-    return graph
 
 
 def test_1_default_input():
@@ -32,11 +16,11 @@ def test_1_default_input():
     graph.add_edge(3, 4, capacity=10000)
     graph.add_edge(2, 4, capacity=10000)
 
-    assert get_max_flow(graph, 1, 4, -1) == 20000
-    assert get_max_flow(graph, 1, 4, 0) == 20000
-    assert get_max_flow(graph, 1, 4, 1) == 20000
-    assert get_max_flow(graph, 1, 4, 2) == 20000
-    assert get_max_flow(graph, 1, 4, 3) == 20000
+    assert get_max_flow(graph, 1, 4, -1).graph['flow_value'] == 20000
+    assert get_max_flow(graph, 1, 4, 0).graph['flow_value'] == 20000
+    assert get_max_flow(graph, 1, 4, 1).graph['flow_value'] == 20000
+    assert get_max_flow(graph, 1, 4, 2).graph['flow_value'] == 20000
+    assert get_max_flow(graph, 1, 4, 3).graph['flow_value'] == 20000
 
 
 def test_2_hand_crafted_tests():
@@ -47,15 +31,17 @@ def test_2_hand_crafted_tests():
         graph = read_graph_from_file(file_path)
         nodes_quantity = len(graph)
 
-        true_max_flow = preflow_push(graph, 1, nodes_quantity,
-                                     value_only=True)
+        true_graph = preflow_push(graph, 1, nodes_quantity,
+                                  value_only=True)
 
         timer_start = time.time()
-        our_max_flow = get_max_flow(graph, 1, nodes_quantity,
-                                    nodes_quantity//10)
+        our_graph = get_max_flow(graph, 1, nodes_quantity,
+                                 nodes_quantity//10)
         timer_end = time.time()
 
-        assert true_max_flow.graph['flow_value'] == our_max_flow
+        true_max_flow = true_graph.graph['flow_value']
+        our_max_flow = our_graph.graph['flow_value']
+        assert true_max_flow == our_max_flow
 
         print()
         print('filename: ', filename)
