@@ -1,6 +1,7 @@
 from collections import deque
+from operator import itemgetter
 from queue import PriorityQueue
-from typing import Deque, Dict, Optional, Tuple, Union
+from typing import Deque, Dict, List, Optional, Tuple, Union
 
 import networkx as nx
 
@@ -11,7 +12,8 @@ numeric = Union[int, float]
 
 
 def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
-                 global_relabeling_freq: int = 100) -> numeric:
+                 global_relabeling_freq: int = 100,
+                 value_only: bool = True) -> nx.DiGraph:
     """
         Calculate maximum flow of graph.
         Push-relabel algorithm with highest label selection rule is used.
@@ -27,11 +29,25 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
         global_relabeling_freq : int
             Number of push-relabel operations between global relabelings.
             If it is less than 1, global relabelings will not be used.
+            Default value: 100.
+        value_only : bool
+            If True, compute a maximum flow; otherwise, compute a maximum flow
+            and a s-t cut. Default value: False.
 
         Returns
         -------
-        flow_value : numeric
-            Value of the maximum flow.
+        graph : DiGraph
+            If value_only is true returns the initial graph with one additional
+            attribute: flow value;
+            otherwise, returns the initial graph with three additional
+            attributes: flow value, s_cut, t_cut.
+
+            flow_value : numeric
+                Value of the maximum flow.
+            s_cut : List[int]
+                List of graph nodes in a minimum cut of the network.
+            t_cut : List[int]
+                List of graph nodes that are not in s_cut.
     """
 
     # Number of nodes in the graph
@@ -54,6 +70,39 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
 
     def get_residual_capacity(u: int, v: int) -> numeric:
         return network[u][v]['capacity'] - network[u][v]['flow']
+
+    def get_s_t_cut() -> (List[int], List[int]):
+        """
+            Return s_t_cut of the network.
+            Final residual network required.
+
+            Parameters
+            ----------
+            None.
+
+            Returns
+            -------
+            s_cut : List[int]
+                List of graph nodes in a minimum cut of the network.
+            t_cut : List[int]
+                List of graph nodes that are not in s_cut.
+        """
+
+        network_nodes = list(network.nodes(data='height'))
+        gap_height = -1
+
+        network_nodes.sort(key=itemgetter(1))
+        for node in network_nodes:
+            node_height = node[1]
+            gap_height += 1
+            if node_height > gap_height:
+                break
+
+        # node[0] - name of node, node[1] - height of node
+        s_cut = [node[0] for node in network_nodes if node[1] > gap_height]
+        t_cut = [node[0] for node in network_nodes if node[1] < gap_height]
+
+        return s_cut, t_cut
 
     def is_push_allowed(u: int, v: int) -> bool:
         return (get_excess(u) > 0 and
@@ -266,4 +315,11 @@ def get_max_flow(graph: nx.DiGraph, source: int, sink: int,
     while node := choose_next_node():
         discharge(node)
 
-    return get_excess(sink)
+    if value_only:
+        graph = nx.DiGraph(graph, flow_value=get_excess(sink))
+    else:
+        s_cut, t_cut = get_s_t_cut()
+        graph = nx.DiGraph(graph, flow_value=get_excess(sink),
+                           s_cut=s_cut, t_cut=t_cut)
+
+    return graph
