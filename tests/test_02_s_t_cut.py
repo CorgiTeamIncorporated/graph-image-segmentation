@@ -4,7 +4,7 @@ from push_relabel import get_max_flow
 
 
 def test_1_hand_crafted_tests():
-    target_dir = os.path.join(os.getcwd(), 'tests\\push_relabel_test_inputs')
+    target_dir = './tests/push_relabel_test_inputs'
 
     for filename in os.listdir(target_dir):
         file_path = os.path.join(target_dir, filename)
