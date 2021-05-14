@@ -9,6 +9,7 @@ __all__ = ['get_max_flow']
 
 # Applicable types for edges capacities
 numeric = Union[int, float]
+
 # Applicable types for nodes
 Node = NewType('Node', Hashable)
 
@@ -22,7 +23,7 @@ def get_max_flow(graph: nx.DiGraph, source: Node, sink: Node,
 
         Parameters
         ----------
-        graph : nx.Graph
+        graph : nx.DiGraph
             Graph to find maximum flow in.
         source : Node
             Source of flow.
@@ -34,20 +35,20 @@ def get_max_flow(graph: nx.DiGraph, source: Node, sink: Node,
             Default value: 100.
         value_only : bool
             If True, compute a maximum flow; otherwise, compute a maximum flow
-            and a s-t cut. Default value: False.
+            and a s-t cut. Default value: True.
 
         Returns
         -------
-        graph : DiGraph
-            If value_only is true returns the initial graph with one additional
-            attribute: flow value;
-            otherwise, returns the initial graph with three additional
-            attributes: flow value, s_cut, t_cut.
+        graph : nx.DiGraph
+            If value_only is True, returns the initial graph with one additional
+            attribute: flow_value;
+            Otherwise, returns the initial graph with three additional
+            attributes: flow_value, s_cut, t_cut.
 
             flow_value : numeric
                 Value of the maximum flow.
             s_cut : List[Node]
-                List of graph nodes in a minimum cut of the network.
+                List of graph nodes in the minimum cut of the network.
             t_cut : List[Node]
                 List of graph nodes that are not in s_cut.
     """
@@ -73,9 +74,9 @@ def get_max_flow(graph: nx.DiGraph, source: Node, sink: Node,
     def get_residual_capacity(u: Node, v: Node) -> numeric:
         return network[u][v]['capacity'] - network[u][v]['flow']
 
-    def get_s_t_cut() -> (List[Node], List[Node]):
+    def get_s_t_cut() -> Tuple[List[Node], List[Node]]:
         """
-            Return s_t_cut of the network.
+            Return s-t-cut of the network.
             Final residual network required.
 
             Parameters
@@ -85,7 +86,7 @@ def get_max_flow(graph: nx.DiGraph, source: Node, sink: Node,
             Returns
             -------
             s_cut : List[Node]
-                List of graph nodes in a minimum cut of the network.
+                List of graph nodes in the minimum cut of the network.
             t_cut : List[Node]
                 List of graph nodes that are not in s_cut.
         """
