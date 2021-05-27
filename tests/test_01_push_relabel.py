@@ -1,9 +1,11 @@
-import networkx as nx
-import time
 import os
-from .utils import read_graph_from_file
+import time
+
+import networkx as nx
+from algo.graph_utils import get_max_flow
 from networkx.algorithms.flow import preflow_push
-from push_relabel import get_max_flow
+
+from .utils import read_graph_from_file
 
 
 def test_1_default_input():
@@ -24,7 +26,7 @@ def test_1_default_input():
 
 
 def test_2_hand_crafted_tests():
-    target_dir = os.path.join(os.getcwd(), 'tests\\push_relabel_test_inputs')
+    target_dir = './tests/push_relabel_test_inputs'
 
     for filename in os.listdir(target_dir):
         file_path = os.path.join(target_dir, filename)
