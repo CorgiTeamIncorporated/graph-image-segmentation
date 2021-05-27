@@ -1,6 +1,8 @@
 import os
+
+from algo.graph_utils import get_max_flow
+
 from .utils import read_graph_from_file
-from push_relabel import get_max_flow
 
 
 def test_1_hand_crafted_tests():

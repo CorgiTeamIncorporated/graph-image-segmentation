@@ -1,7 +1,7 @@
 from collections import deque
 from operator import itemgetter
 from queue import PriorityQueue
-from typing import Deque, Dict, Hashable, List, NewType, Optional, Tuple, Union
+from typing import Deque, Dict, Hashable, List, Optional, Tuple, Union
 
 import networkx as nx
 
@@ -11,7 +11,7 @@ __all__ = ['get_max_flow']
 numeric = Union[int, float]
 
 # Applicable types for nodes
-Node = NewType('Node', Hashable)
+Node = Hashable
 
 
 def get_max_flow(graph: nx.DiGraph, source: Node, sink: Node,
@@ -40,8 +40,8 @@ def get_max_flow(graph: nx.DiGraph, source: Node, sink: Node,
         Returns
         -------
         graph : nx.DiGraph
-            If value_only is True, returns the initial graph with one additional
-            attribute: flow_value;
+            If value_only is True, returns the initial graph
+            with one additional attribute: flow_value;
             Otherwise, returns the initial graph with three additional
             attributes: flow_value, s_cut, t_cut.
 
