@@ -22,7 +22,6 @@ class SegmentatorGui(tk.Frame):
 
         self.pack(fill=tk.BOTH, expand=1)
 
-        # TODO: implement radius changing with slider
         # Radius of brush
         self.radius = IntVar()
         self.radius.set(5)
