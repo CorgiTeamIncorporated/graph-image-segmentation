@@ -28,27 +28,36 @@ sigma = 1.0
 
 # Rectangles with background and object
 boxes = {
-    './static/elefant-gr-320.jpg': (
+    './graph-image-segmentation/static/elefant-gr-320.jpg': (
         set(product(range(70), range(60))),
         set(product(range(120, 220), range(70, 140)))
     ),
-    './static/fullmoon-gr-320.jpg': (
+    './graph-image-segmentation/static/fullmoon-gr-320.jpg': (
         set(product(range(100), range(100))),
         set(product(range(125, 180), range(100, 140)))
     ),
-    './static/banana1-gr-320.jpg': (
+    './graph-image-segmentation/static/banana1-gr-320.jpg': (
         set(product(range(200), range(101))),
         set(product(range(125, 190), range(146, 195)))
+    ),
+    './graph-image-segmentation/static/cat-purr-icon.png': (
+        set(product(range(7), range(31, 45))),
+        set(product(range(11, 22), range(25, 32)))
     )
 }
 
 # Filename to run test on
-filename = './static/elefant-gr-320.jpg'
+filename = './graph-image-segmentation/static/elefant-gr-320.jpg'
 
-image = Image.open(filename)
+image = Image.open(filename).convert('L')
 background, object = boxes[filename]
 
 segmentator = Segmentator(image, neighbors, lambda_, gaussian(sigma))
 s, t = segmentator.mark(object, background)
+
+draw_mask(image.size, s, t).show()
+
+s, t = segmentator.mark(background_pixels=set(product(range(290, 310),
+                                                      range(10))))
 
 draw_mask(image.size, s, t).show()
