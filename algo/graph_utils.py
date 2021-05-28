@@ -193,14 +193,11 @@ def get_max_flow(graph: nx.DiGraph, source: Node, sink: Node,
             -------
             None.
         """
-        try:
-            new_height: int = min(get_height(v)
-                                  for v in network.neighbors(u)
-                                  if get_residual_capacity(u, v) > 0) + 1
-            network.nodes[u]['height'] = new_height
-        except ValueError:
-            for v in network.neighbors(u):
-                print(network[u][v])
+
+        new_height: int = min(get_height(v)
+                              for v in network.neighbors(u)
+                              if get_residual_capacity(u, v) > 0) + 1
+        network.nodes[u]['height'] = new_height
 
     def discharge(u: Node) -> None:
         """
