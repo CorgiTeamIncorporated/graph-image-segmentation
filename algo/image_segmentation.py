@@ -4,7 +4,7 @@ from typing import Callable, Dict, Iterable, Literal, NewType, Tuple
 
 import networkx as nx
 from PIL import Image
-from networkx.algorithms.flow import minimum_cut
+from algo.graph_utils import get_max_flow
 
 Point = NewType('Point', Tuple[int, int])
 PointType = Literal['object', 'background']
@@ -104,6 +104,10 @@ class Segmentator:
     def mark(self,
              object_pixels: Iterable[Point] = set(),
              background_pixels: Iterable[Point] = set()):
+
+        def rebuild_graph():
+            return self.graph.graph['res_net']
+
         if object_pixels or background_pixels:
             if self.first_run:
                 assert object_pixels and background_pixels
@@ -133,8 +137,32 @@ class Segmentator:
                     self.graph.add_edge('s', (cx, cy), capacity=s_weight)
                     self.graph.add_edge((cx, cy), 't', capacity=t_weight)
 
-                _, (s, t) = minimum_cut(self.graph, 's', 't')
+                self.graph = get_max_flow(self.graph, 's', 't',
+                                          len(self.graph)//10,
+                                          value_only=False)
+                (s, t) = (self.graph.graph['s_cut'], self.graph.graph['t_cut'])
 
+                self.graph = rebuild_graph()
                 return s, t
             else:
-                pass
+                for cx, cy in object_pixels:
+                    sp_cap = self.graph['s'][(cx, cy)]['capacity']
+                    pt_cap = self.graph[(cx, cy)]['t']['capacity']
+                    const = max(sp_cap, pt_cap)
+                    self.graph['s'][(cx, cy)]['capacity'] = const + self.K
+                    self.graph[(cx, cy)]['t']['capacity'] = const
+
+                for cx, cy in background_pixels:
+                    sp_cap = self.graph['s'][(cx, cy)]['capacity']
+                    pt_cap = self.graph[(cx, cy)]['t']['capacity']
+                    const = max(sp_cap, pt_cap)
+                    self.graph['s'][(cx, cy)]['capacity'] = const
+                    self.graph[(cx, cy)]['t']['capacity'] = const + self.K
+
+                self.graph = get_max_flow(self.graph, 's', 't',
+                                          len(self.graph)//10,
+                                          value_only=False)
+                (s, t) = (self.graph.graph['s_cut'], self.graph.graph['t_cut'])
+
+                self.graph = rebuild_graph()
+                return s, t

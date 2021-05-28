@@ -72,7 +72,7 @@ def get_max_flow(graph: nx.DiGraph, source: Node, sink: Node,
         return network.nodes[u]['excess']
 
     def get_residual_capacity(u: Node, v: Node) -> numeric:
-        return network[u][v]['capacity'] - network[u][v]['flow']
+        return network[u][v]['capacity']
 
     def get_s_t_cut() -> Tuple[List[Node], List[Node]]:
         """
@@ -138,8 +138,8 @@ def get_max_flow(graph: nx.DiGraph, source: Node, sink: Node,
             capacity = edge_data['capacity']
 
             if not new_graph.has_edge(u, v):
-                new_graph.add_edge(u, v, capacity=capacity, flow=0)
-                new_graph.add_edge(v, u, capacity=0, flow=0)
+                new_graph.add_edge(u, v, capacity=capacity)
+                new_graph.add_edge(v, u, capacity=0)
             else:
                 new_graph[u][v]['capacity'] = capacity
 
@@ -175,8 +175,8 @@ def get_max_flow(graph: nx.DiGraph, source: Node, sink: Node,
         if v not in (source, sink) and get_excess(v) == 0 and delta > 0:
             nodes_queue.put((-get_height(v), v))
 
-        network[u][v]['flow'] += delta
-        network[v][u]['flow'] -= delta
+        network[u][v]['capacity'] -= delta
+        network[v][u]['capacity'] += delta
         network.nodes[u]['excess'] -= delta
         network.nodes[v]['excess'] += delta
 
@@ -193,11 +193,14 @@ def get_max_flow(graph: nx.DiGraph, source: Node, sink: Node,
             -------
             None.
         """
-
-        new_height: int = min(get_height(v)
-                              for v in network.neighbors(u)
-                              if get_residual_capacity(u, v) > 0) + 1
-        network.nodes[u]['height'] = new_height
+        try:
+            new_height: int = min(get_height(v)
+                                  for v in network.neighbors(u)
+                                  if get_residual_capacity(u, v) > 0) + 1
+            network.nodes[u]['height'] = new_height
+        except ValueError:
+            for v in network.neighbors(u):
+                print(network[u][v])
 
     def discharge(u: Node) -> None:
         """
@@ -319,10 +322,11 @@ def get_max_flow(graph: nx.DiGraph, source: Node, sink: Node,
         discharge(node)
 
     if value_only:
-        graph = nx.DiGraph(graph, flow_value=get_excess(sink))
+        graph = nx.DiGraph(graph, flow_value=get_excess(sink),
+                           res_net=network)
     else:
         s_cut, t_cut = get_s_t_cut()
         graph = nx.DiGraph(graph, flow_value=get_excess(sink),
-                           s_cut=s_cut, t_cut=t_cut)
+                           res_net=network, s_cut=s_cut, t_cut=t_cut)
 
     return graph
