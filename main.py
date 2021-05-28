@@ -1,10 +1,7 @@
 import tkinter as tk
-# from tkinter import Frame, Label, Radiobutton, StringVar, ttk, messagebox
-# from tkinter import filedialog as fd
-# from tkinter.constants import *
-from PIL import Image, ImageTk, ImageDraw
 from tkinter import StringVar
-# import math
+
+from PIL import Image, ImageDraw, ImageTk
 
 
 def get_circle_bounding_box(center_x, center_y, radius):
