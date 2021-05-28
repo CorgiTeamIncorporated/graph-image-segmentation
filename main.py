@@ -1,113 +1,203 @@
 import tkinter as tk
-from tkinter import Frame, Label, Radiobutton, StringVar, ttk, messagebox
-from tkinter import filedialog as fd
-from tkinter.constants import *
-from PIL import Image, ImageTk
-import math
+from tkinter import StringVar
+
+from PIL import Image, ImageDraw, ImageTk
 
 
-class Application(tk.Frame):
+def get_circle_bounding_box(center_x, center_y, radius):
+    return (center_x - radius,
+            center_y - radius,
+            center_x + radius,
+            center_y + radius)
+
+
+class SegmentatorGui(tk.Frame):
     def __init__(self, master=None):
         super().__init__(master)
-        self.master = master
-        self.count_click = 0
-        self.pack()
-        self.create_top_panel()
 
-    def create_top_panel(self):
-        self.master.update()
-        self.f_top = Frame(self.master, height = 50, width=self.master.winfo_width())
-        open_button = ttk.Button(self.f_top, text = 'Open a File',command = self.select_file)
-        self.text_label = Label(text = 'Click on the object')
-        self.text_label.place(x = 100, y = 6)
-        self.f_top.place(x = 5, y = 5)
-        open_button.pack(expand = True)
+        self.pack(fill=tk.BOTH, expand=1)
 
-    
-    def select_file(self):
-        filetypes = (
-            ('Images', '*.png *.jpg *.jpeg *.bmp'),
-            ('PNG', '*.png'),
-            ('JPG', '*.jpg'),
-            ('JPEG', '*.jpeg'),
-            ('BMP', '*.bmp')
+        # TODO: implement radius changing with slider
+        # Radius of brush
+        self.radius = 5
+
+        # Defines canvas border
+        self.offset_x = 0
+        self.offset_y = 0
+
+        # Defines which brush is currently selected
+        self._point_type = StringVar()
+        self._point_type.set('object')
+
+        # Initial phase is phase when both
+        # background and object are needed to be marked
+        # Main phase follows initial step
+        self._phase = 'initial'
+
+        # Only needed during initial phase
+        self._is_object_selected = False
+        self._is_background_selected = False
+
+        # Colors of brushes
+        self._colors = {
+            'object': (255, 0, 0, 100),
+            'background': (0, 0, 255, 100)
+        }
+
+        # Colors of mask
+        self._mask_colors = {
+            'object': 1,
+            'background': 2
+        }
+
+        # Mask of background and object points
+        # Selected during one iteration
+        # This is not presented to user
+
+        # TODO: Load image interactively
+        filename = './static/banana1-gr-320.jpg'
+        self.orig_image = Image.open(filename).convert('RGBA')
+        self.mask_image = Image.new('RGBA', self.orig_image.size)
+
+        self._init_ui()
+        self._update_displayed_image()
+        self._init_binds()
+
+        self._mask = Image.new('L', self.orig_image.size, 0)
+
+    def _init_toolbox(self):
+        self._toolbox_frame = tk.LabelFrame(
+            self,
+            text='Toolbox',
+            relief=tk.RIDGE,
+            padx=10
+        )
+        self._toolbox_frame.grid(row=1, column=1, sticky=tk.NS)
+
+        self._mark_as_frame = tk.LabelFrame(
+            self._toolbox_frame,
+            text="Mark as",
+            relief=tk.RIDGE
         )
 
-        filename = fd.askopenfilename(
-            title='Open a file',
-            initialdir = '/',
-            filetypes = filetypes)
+        self._object_radio = tk.Radiobutton(
+            self._mark_as_frame,
+            text='Object',
+            variable=self._point_type,
+            value='object'
+        )
+        self._object_radio.grid(row=1, column=1)
 
-        if hasattr(self, 'photo_label'):
-            self.photo_label.destroy()
-        self.place_image(filename)
-    
-    
-    def place_image(self, filename):
-        image = Image.open (filename) 
-        self.photo = ImageTk.PhotoImage (image) 
+        self._background_radio = tk.Radiobutton(
+            self._mark_as_frame,
+            text='Background',
+            variable=self._point_type,
+            value='background'
+        )
+        self._background_radio.grid(row=2, column=1)
 
-        self.photo_label = tk.Label (image = self.photo, height = self.photo.height(), width = self.photo.width()) 
-        self.photo_label.image = self.photo    
-        self.photo_label.place (x = 10 , y = 50)
-        self.photo_label.bind('<ButtonRelease>', self.click_image)
+        self._mark_as_frame.grid(row=1, column=1)
 
-    def place_mask(self, image = None):
-        self.mask = ImageTk.PhotoImage (image) 
+    # GUI initialization functions
+    def _init_canvas(self):
+        self._canvas_frame = tk.LabelFrame(
+            self,
+            text='Canvas',
+            relief=tk.RIDGE,
+            padx=10,
+            pady=10
+        )
+        self._canvas_frame.grid(row=1, column=2, sticky=tk.NS)
 
-        self.mask_label = tk.Label (image = self.mask, height = self.mask.height(), width = self.mask.width()) 
-        self.mask_label.image = self.mask    
-        self.mask_label.place (x = 800 , y = 50)
+        self.canvas = tk.Canvas(self._canvas_frame,
+                                width=self.orig_image.size[0],
+                                height=self.orig_image.size[1])
+        self.canvas.grid(row=1, column=2)
 
-    def click_image(self, event):
-        self.count_click += 1
+    def _init_ui(self):
+        self.pack(padx=20, pady=20)
 
-        if self.count_click == 1:
-            self.first_coord_obj = self.choice_pixels(event.x, event.y, 10)
-            self.text_label.destroy()
-            self.text_label = Label(text = 'Click on the background')
-            self.text_label.place(x = 100, y = 6)
+        self._init_toolbox()
+        self._init_canvas()
 
-        if self.count_click == 2:
-            self.first_coord_bg = self.choice_pixels(event.x, event.y, 10)
-            self.text_label.destroy()
-            self.create_radiobutton()
-            #отправить в сегментацию
-            #mask_image = 'функция сигментации'(self.photo, self.first_coord_obj, self.first_coord_bg)            
-            #self.mask_label.destroy()
-            #self.place_mask(mask_image)
+    def _init_binds(self):
+        self.canvas.bind('<Motion>', self.cursor_motion_handler)
+        self.canvas.bind('<B1-Motion>', self.pressed_cursor_motion_handler)
+        self.canvas.bind('<ButtonRelease-1>', self.cursor_release_handler)
 
-        if self.count_click > 2:
-            coord = self.choice_pixels(event.x, event.y, 1)
+    def _update_displayed_image(self):
+        self.combined_image = self.orig_image.copy()
 
-            if self.point_type.get() != 'Object' and self.point_type.get() != 'Background':
-                messagebox.showinfo("Attention", "Select Object or Background")
-            else:
-                print("")
-                #отправить в сегментацию
-                #mask_image = 'функция сигментации'(self.photo, coord, self.point_type.get())            
-                #self.mask_label.destroy()
-                #self.place_mask(mask_image)
+        if hasattr(self, 'mask_image'):
+            self.combined_image.paste(self.mask_image,
+                                      mask=self.mask_image)
 
-    def create_radiobutton(self):
-        self.point_type = StringVar()
-        r1 = Radiobutton(text = 'Object', variable = self.point_type, value = 'Object')
-        r2 = Radiobutton(text = 'Background',variable = self.point_type, value = 'Background')
-        r1.place(x = 100, y = 6)
-        r2.place(x = 100, y = 25)
+        if hasattr(self, 'pointer_image'):
+            self.combined_image.paste(self.pointer_image,
+                                      mask=self.pointer_image)
 
-    def choice_pixels(self, place_x, place_y, radius):
-        result = set()
-        for x in range(place_x - radius, place_x + radius + 1):
-            for y in range(place_y - radius, place_y + radius + 1):
-                result.add((x,y))
-        return(result)
+        self.combined_tk_image = ImageTk.PhotoImage(self.combined_image)
+
+        if hasattr(self, 'displayed_image'):
+            self.canvas.itemconfig(self.displayed_image,
+                                   image=self.combined_tk_image)
+        else:
+            self.displayed_image = self.canvas.create_image(
+                self.offset_x,
+                self.offset_y,
+                image=self.combined_tk_image,
+                anchor=tk.NW
+            )
+
+    # Event handlers
+    def cursor_motion_handler(self, event):
+        self.pointer_image = Image.new('RGBA', self.orig_image.size)
+        ImageDraw.Draw(self.pointer_image).ellipse(
+            get_circle_bounding_box(event.x - self.offset_x,
+                                    event.y - self.offset_y,
+                                    self.radius),
+            fill=self._colors[self._point_type.get()]
+        )
+        self._update_displayed_image()
+
+    def pressed_cursor_motion_handler(self, event):
+        # Clear cursor before drawing
+        self.pointer_image = Image.new('RGBA', self.orig_image.size)
+
+        box = get_circle_bounding_box(event.x - self.offset_x,
+                                      event.y - self.offset_y,
+                                      self.radius)
+
+        ImageDraw.Draw(self._mask).ellipse(
+            box, fill=self._mask_colors[self._point_type.get()]
+        )
+        ImageDraw.Draw(self.mask_image).ellipse(
+            box, fill=self._colors[self._point_type.get()]
+        )
+
+        self._update_displayed_image()
+
+    def cursor_release_handler(self, _):
+        if self._phase == 'initial':
+            point_type_str = self._point_type.get()
+            self._is_object_selected |= (point_type_str == 'object')
+            self._is_background_selected |= (point_type_str == 'background')
+
+            if self._is_object_selected and self._is_background_selected:
+                # Send mask to segmentator
+                self._phase = 'main'
+                pass
+        else:
+            # Send mask to segmentator
+            self._mask = Image.new('L', self.orig_image.size, 0)
+            pass
 
 
-root = tk.Tk()
-root.title('Tkinter Open File Dialog')
-root.resizable(False, False)
-root.geometry('1500x750')
+if __name__ == '__main__':
+    root = tk.Tk()
+    root.title('Graph Image Segmentation')
+    root.resizable(False, False)
+    root.geometry('800x600')
 
-app = Application(master=root)
-app.mainloop()
+    app = SegmentatorGui(master=root)
+    app.mainloop()
