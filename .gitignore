@@ -2,3 +2,5 @@ __pycache__/
 .pytest_cache/
 .vscode/
 static/
+algo/tests/segmentation_test_imputs
+algo/tests/segmentation_test_outputs

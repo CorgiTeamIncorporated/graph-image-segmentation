@@ -6,7 +6,7 @@ from .utils import read_graph_from_file
 
 
 def test_1_hand_crafted_tests():
-    target_dir = './tests/push_relabel_test_inputs'
+    target_dir = './algo/tests/push_relabel_test_inputs'
 
     for filename in os.listdir(target_dir):
         file_path = os.path.join(target_dir, filename)
