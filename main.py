@@ -1,6 +1,8 @@
 import tkinter as tk
 from itertools import product
-from tkinter import StringVar, filedialog as fd, ttk
+from tkinter import IntVar, StringVar
+from tkinter import filedialog as fd
+from tkinter import ttk
 
 from PIL import Image, ImageDraw, ImageTk
 
@@ -22,7 +24,8 @@ class SegmentatorGui(tk.Frame):
 
         # TODO: implement radius changing with slider
         # Radius of brush
-        self.radius = 4
+        self.radius = IntVar()
+        self.radius.set(5)
 
         # Defines canvas border
         self.offset_x = 0
@@ -129,6 +132,15 @@ class SegmentatorGui(tk.Frame):
         )
         self._background_radio.grid(row=2, column=1)
 
+        self._slider = tk.Scale(self._toolbox_frame,
+                                from_=1,
+                                to=40,
+                                variable=self.radius,
+                                orient=tk.HORIZONTAL,
+                                relief=tk.RIDGE,
+                                label='Pointer Radius')
+        self._slider.grid(row=3, column=1)
+
     # GUI initialization functions
     def _init_canvas(self):
         self._canvas_frame = tk.LabelFrame(
@@ -189,7 +201,7 @@ class SegmentatorGui(tk.Frame):
         ImageDraw.Draw(self.pointer_image).ellipse(
             get_circle_bounding_box(event.x - self.offset_x,
                                     event.y - self.offset_y,
-                                    self.radius),
+                                    self.radius.get()),
             fill=self._colors[self._point_type.get()]
         )
         self._update_displayed_image()
@@ -201,7 +213,7 @@ class SegmentatorGui(tk.Frame):
 
             box = get_circle_bounding_box(event.x - self.offset_x,
                                           event.y - self.offset_y,
-                                          self.radius)
+                                          self.radius.get())
 
             ImageDraw.Draw(self._mask).ellipse(
                 box, fill=self._mask_colors[self._point_type.get()]
