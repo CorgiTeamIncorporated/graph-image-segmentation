@@ -1,7 +1,10 @@
 import tkinter as tk
+from itertools import product
 from tkinter import StringVar
 
 from PIL import Image, ImageDraw, ImageTk
+
+from algo.image_segmentation import Segmentator
 
 
 def get_circle_bounding_box(center_x, center_y, radius):
@@ -50,19 +53,21 @@ class SegmentatorGui(tk.Frame):
             'background': 2
         }
 
-        # Mask of background and object points
-        # Selected during one iteration
-        # This is not presented to user
-
         # TODO: Load image interactively
         filename = './static/banana1-gr-320.jpg'
         self.orig_image = Image.open(filename).convert('RGBA')
         self.mask_image = Image.new('RGBA', self.orig_image.size)
 
+        self.segmentator = Segmentator(self.orig_image.convert('L'),
+                                       neighbors=8)
+
         self._init_ui()
         self._update_displayed_image()
         self._init_binds()
 
+        # Mask of background and object points
+        # Selected during one iteration
+        # This is not presented to user
         self._mask = Image.new('L', self.orig_image.size, 0)
 
     def _init_toolbox(self):
@@ -110,8 +115,8 @@ class SegmentatorGui(tk.Frame):
         self._canvas_frame.grid(row=1, column=2, sticky=tk.NS)
 
         self.canvas = tk.Canvas(self._canvas_frame,
-                                width=self.orig_image.size[0],
-                                height=self.orig_image.size[1])
+                                width=self.orig_image.width,
+                                height=self.orig_image.height)
         self.canvas.grid(row=1, column=2)
 
     def _init_ui(self):
@@ -178,19 +183,55 @@ class SegmentatorGui(tk.Frame):
         self._update_displayed_image()
 
     def cursor_release_handler(self, _):
+        def extract_marked_pixels(image: Image.Image):
+            object_pixels = set()
+            background_pixels = set()
+
+            for pixel in product(range(image.width), range(image.height)):
+                if image.getpixel(pixel) == self._mask_colors['object']:
+                    object_pixels.add(pixel)
+
+                if image.getpixel(pixel) == self._mask_colors['background']:
+                    background_pixels.add(pixel)
+
+            return object_pixels, background_pixels
+
+        def start_segmentation():
+            print('segmentation started')
+
+            object_pixels, background_pixels = extract_marked_pixels(
+                self._mask
+            )
+            s, t = self.segmentator.mark(
+                object_pixels=object_pixels,
+                background_pixels=background_pixels
+            )
+
+            print('segmentation completed')
+
+            for pixel in s:
+                if pixel != 's':
+                    self.mask_image.putpixel(pixel,
+                                             self._colors['object'])
+            for pixel in t:
+                if pixel != 't':
+                    self.mask_image.putpixel(pixel,
+                                             self._colors['background'])
+
+            # Clear temp mask
+            self._mask = Image.new('L', self.orig_image.size, 0)
+            self._update_displayed_image()
+
         if self._phase == 'initial':
             point_type_str = self._point_type.get()
             self._is_object_selected |= (point_type_str == 'object')
             self._is_background_selected |= (point_type_str == 'background')
 
             if self._is_object_selected and self._is_background_selected:
-                # Send mask to segmentator
+                start_segmentation()
                 self._phase = 'main'
-                pass
         else:
-            # Send mask to segmentator
-            self._mask = Image.new('L', self.orig_image.size, 0)
-            pass
+            start_segmentation()
 
 
 if __name__ == '__main__':
