@@ -1,6 +1,6 @@
 import tkinter as tk
 from itertools import product
-from tkinter import StringVar
+from tkinter import StringVar, filedialog as fd, ttk
 
 from PIL import Image, ImageDraw, ImageTk
 
@@ -22,7 +22,7 @@ class SegmentatorGui(tk.Frame):
 
         # TODO: implement radius changing with slider
         # Radius of brush
-        self.radius = 5
+        self.radius = 4
 
         # Defines canvas border
         self.offset_x = 0
@@ -41,6 +41,9 @@ class SegmentatorGui(tk.Frame):
         self._is_object_selected = False
         self._is_background_selected = False
 
+        # Only needed before picture opening
+        self._is_picture_opened = False
+
         # Colors of brushes
         self._colors = {
             'object': (255, 0, 0, 100),
@@ -53,22 +56,41 @@ class SegmentatorGui(tk.Frame):
             'background': 2
         }
 
-        # TODO: Load image interactively
-        filename = './static/banana1-gr-320.jpg'
+        # Empty picture on first start
+        self.orig_image = Image.new('RGBA', (300, 300))
+
+        self._init_ui()
+        self._init_binds()
+
+    def _ask_filename(self):
+        filetypes = (
+            ('Images', '*.png *.jpg *.jpeg *.bmp'),
+            ('PNG', '*.png'),
+            ('JPG', '*.jpg'),
+            ('JPEG', '*.jpeg'),
+            ('BMP', '*.bmp')
+        )
+
+        filename = fd.askopenfilename(
+            title='Open a picture',
+            initialdir='./',
+            filetypes=filetypes
+        )
+
         self.orig_image = Image.open(filename).convert('RGBA')
         self.mask_image = Image.new('RGBA', self.orig_image.size)
 
         self.segmentator = Segmentator(self.orig_image.convert('L'),
                                        neighbors=8)
-
-        self._init_ui()
-        self._update_displayed_image()
-        self._init_binds()
+        self._phase = 'initial'
 
         # Mask of background and object points
         # Selected during one iteration
         # This is not presented to user
         self._mask = Image.new('L', self.orig_image.size, 0)
+
+        self._update_displayed_image()
+        self._is_picture_opened = True
 
     def _init_toolbox(self):
         self._toolbox_frame = tk.LabelFrame(
@@ -79,11 +101,17 @@ class SegmentatorGui(tk.Frame):
         )
         self._toolbox_frame.grid(row=1, column=1, sticky=tk.NS)
 
+        self._open_button = ttk.Button(self._toolbox_frame,
+                                       text='Open a picture',
+                                       command=self._ask_filename)
+        self._open_button.grid(row=1, column=1)
+
         self._mark_as_frame = tk.LabelFrame(
             self._toolbox_frame,
             text="Mark as",
             relief=tk.RIDGE
         )
+        self._mark_as_frame.grid(row=2, column=1)
 
         self._object_radio = tk.Radiobutton(
             self._mark_as_frame,
@@ -101,8 +129,6 @@ class SegmentatorGui(tk.Frame):
         )
         self._background_radio.grid(row=2, column=1)
 
-        self._mark_as_frame.grid(row=1, column=1)
-
     # GUI initialization functions
     def _init_canvas(self):
         self._canvas_frame = tk.LabelFrame(
@@ -112,7 +138,7 @@ class SegmentatorGui(tk.Frame):
             padx=10,
             pady=10
         )
-        self._canvas_frame.grid(row=1, column=2, sticky=tk.NS)
+        self._canvas_frame.grid(row=1, column=2, sticky=tk.NS+tk.E)
 
         self.canvas = tk.Canvas(self._canvas_frame,
                                 width=self.orig_image.width,
@@ -143,6 +169,9 @@ class SegmentatorGui(tk.Frame):
 
         self.combined_tk_image = ImageTk.PhotoImage(self.combined_image)
 
+        self.canvas.configure(width=self.orig_image.width,
+                              height=self.orig_image.height)
+
         if hasattr(self, 'displayed_image'):
             self.canvas.itemconfig(self.displayed_image,
                                    image=self.combined_tk_image)
@@ -166,21 +195,22 @@ class SegmentatorGui(tk.Frame):
         self._update_displayed_image()
 
     def pressed_cursor_motion_handler(self, event):
-        # Clear cursor before drawing
-        self.pointer_image = Image.new('RGBA', self.orig_image.size)
+        if self._is_picture_opened:
+            # Clear cursor before drawing
+            self.pointer_image = Image.new('RGBA', self.orig_image.size)
 
-        box = get_circle_bounding_box(event.x - self.offset_x,
-                                      event.y - self.offset_y,
-                                      self.radius)
+            box = get_circle_bounding_box(event.x - self.offset_x,
+                                          event.y - self.offset_y,
+                                          self.radius)
 
-        ImageDraw.Draw(self._mask).ellipse(
-            box, fill=self._mask_colors[self._point_type.get()]
-        )
-        ImageDraw.Draw(self.mask_image).ellipse(
-            box, fill=self._colors[self._point_type.get()]
-        )
+            ImageDraw.Draw(self._mask).ellipse(
+                box, fill=self._mask_colors[self._point_type.get()]
+            )
+            ImageDraw.Draw(self.mask_image).ellipse(
+                box, fill=self._colors[self._point_type.get()]
+            )
 
-        self._update_displayed_image()
+            self._update_displayed_image()
 
     def cursor_release_handler(self, _):
         def extract_marked_pixels(image: Image.Image):
