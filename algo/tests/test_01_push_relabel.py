@@ -26,7 +26,7 @@ def test_1_default_input():
 
 
 def test_2_hand_crafted_tests():
-    target_dir = './tests/push_relabel_test_inputs'
+    target_dir = './algo/tests/push_relabel_test_inputs'
 
     for filename in os.listdir(target_dir):
         file_path = os.path.join(target_dir, filename)
