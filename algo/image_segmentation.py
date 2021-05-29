@@ -1,10 +1,12 @@
 from itertools import product
-from math import dist, exp, log
+from math import dist, exp, log, sqrt
 from typing import Callable, Dict, Iterable, Literal, NewType, Tuple
 
 import networkx as nx
 from PIL import Image
+
 from algo.graph_utils import get_max_flow
+from algo.utils import scale_cut
 
 Point = NewType('Point', Tuple[int, int])
 PointType = Literal['object', 'background']
@@ -94,8 +96,15 @@ class Segmentator:
 
             self.K = max(self.K, max_node_flow)
 
+        self.size_limit = 10000
+        self.pic_area = image.width * image.height
+        self.down_scale = int(sqrt(max(self.pic_area / self.size_limit, 1)))
+        print(self.down_scale)
+        self.orig_size = image.size
+
         self.K += 1
-        self.image = image
+        self.image = image.resize((int(self.width // self.down_scale),
+                                   int(self.height // self.down_scale)))
         self.lambda_ = lambda_
         self.relative_cost_gen = relative_cost_gen
 
@@ -107,6 +116,13 @@ class Segmentator:
 
         def rebuild_graph():
             return self.graph.graph['res_net']
+
+        object_pixels, background_pixels = scale_cut(
+            object_pixels, background_pixels,
+            self.orig_size, 1/self.down_scale
+        )
+
+        print(object_pixels)
 
         if object_pixels or background_pixels:
             if self.first_run:
@@ -140,10 +156,7 @@ class Segmentator:
                 self.graph = get_max_flow(self.graph, 's', 't',
                                           len(self.graph)//10,
                                           value_only=False)
-                (s, t) = (self.graph.graph['s_cut'], self.graph.graph['t_cut'])
 
-                self.graph = rebuild_graph()
-                return s, t
             else:
                 for cx, cy in object_pixels:
                     sp_cap = self.graph['s'][(cx, cy)]['capacity']
@@ -162,7 +175,9 @@ class Segmentator:
                 self.graph = get_max_flow(self.graph, 's', 't',
                                           len(self.graph)//10,
                                           value_only=False)
-                (s, t) = (self.graph.graph['s_cut'], self.graph.graph['t_cut'])
 
-                self.graph = rebuild_graph()
-                return s, t
+            s, t = self.graph.graph['s_cut'], self.graph.graph['t_cut']
+
+            self.graph = rebuild_graph()
+
+            return scale_cut(s, t, self.image.size, self.down_scale)
