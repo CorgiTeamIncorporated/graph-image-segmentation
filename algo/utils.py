@@ -20,7 +20,10 @@ def jaccard_score(mask1, mask2):
     mask1 = mask1.astype(int)
     mask2 = mask2.astype(int)
     numerator = np.sum(mask1 & mask2)
-    denominator = np.sum(mask1 | mask2)
+    # denominator = np.sum(mask1 | mask2)
+    denominator = np.sum((mask1 + mask2) > 0)
+    print(numerator)
+    print(denominator)
     return numerator/denominator
 
 

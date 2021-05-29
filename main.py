@@ -1,3 +1,4 @@
+import numpy as np
 import tkinter as tk
 from itertools import product
 from tkinter import IntVar, StringVar
@@ -7,6 +8,7 @@ from tkinter import ttk
 from PIL import Image, ImageDraw, ImageTk
 
 from algo.image_segmentation import Segmentator
+from algo.utils import correctness_ratio, generate_mask, jaccard_score
 
 
 def get_circle_bounding_box(center_x, center_y, radius):
@@ -94,6 +96,31 @@ class SegmentatorGui(tk.Frame):
         self._update_displayed_image()
         self._is_picture_opened = True
 
+    def _ask_thuth_mask_file(self):
+        filetypes = (
+            ('Images', '*.png *.jpg *.jpeg *.bmp'),
+            ('PNG', '*.png'),
+            ('JPG', '*.jpg'),
+            ('JPEG', '*.jpeg'),
+            ('BMP', '*.bmp')
+        )
+
+        filename = fd.askopenfilename(
+            title='Open a mask',
+            initialdir='./',
+            filetypes=filetypes
+        )
+
+        self.ground_truth_mask_image = Image.open(filename).convert('L')
+
+        self.truth_tk_image = ImageTk.PhotoImage(self.ground_truth_mask_image)
+        self.displayed_ground_truth = self.ground_truth.create_image(
+            self.offset_x,
+            self.offset_y,
+            image=self.truth_tk_image,
+            anchor=tk.NW
+        )
+
     def _init_toolbox(self):
         self._toolbox_frame = tk.LabelFrame(
             self,
@@ -113,7 +140,7 @@ class SegmentatorGui(tk.Frame):
             text="Mark as",
             relief=tk.RIDGE
         )
-        self._mark_as_frame.grid(row=2, column=1)
+        self._mark_as_frame.grid(row=2, column=1, pady=10)
 
         self._object_radio = tk.Radiobutton(
             self._mark_as_frame,
@@ -140,6 +167,28 @@ class SegmentatorGui(tk.Frame):
                                 label='Pointer Radius')
         self._slider.grid(row=3, column=1)
 
+        self._open_gt_button = ttk.Button(self._toolbox_frame,
+                                          text='Open a ground truth mask',
+                                          command=self._ask_thuth_mask_file)
+        self._open_gt_button.grid(row=4, column=1, pady=10)
+
+    def _init_metrics(self):
+        self._metrics_frame = tk.LabelFrame(
+            self,
+            text='Metrics',
+            relief=tk.RIDGE,
+            padx=10
+        )
+        self._metrics_frame.grid(row=2, column=1, sticky=tk.NS)
+
+        self._jaccard_metric = ttk.Label(self._metrics_frame,
+                                         text='Jaccard: -')
+        self._jaccard_metric.grid(row=1, column=1)
+
+        self._correctness_metric = ttk.Label(self._metrics_frame,
+                                             text='Correctness ratio: -')
+        self._correctness_metric.grid(row=2, column=1)
+
     # GUI initialization functions
     def _init_canvas(self):
         self._canvas_frame = tk.LabelFrame(
@@ -156,11 +205,28 @@ class SegmentatorGui(tk.Frame):
                                 height=self.orig_image.height)
         self.canvas.grid(row=1, column=2)
 
+    def _init_ground_truth_mask(self):
+        self._ground_truth_frame = tk.LabelFrame(
+            self,
+            text='Ground truth mask',
+            relief=tk.RIDGE,
+            padx=10,
+            pady=10
+        )
+        self._ground_truth_frame.grid(row=1, column=3, sticky=tk.NS+tk.E)
+
+        self.ground_truth = tk.Canvas(self._ground_truth_frame,
+                                      width=self.orig_image.width,
+                                      height=self.orig_image.height)
+        self.ground_truth.grid(row=1, column=3)
+
     def _init_ui(self):
         self.pack(padx=20, pady=20)
 
         self._init_toolbox()
+        self._init_metrics()
         self._init_canvas()
+        self._init_ground_truth_mask()
 
     def _init_binds(self):
         self.canvas.bind('<Motion>', self.cursor_motion_handler)
@@ -193,6 +259,15 @@ class SegmentatorGui(tk.Frame):
                 image=self.combined_tk_image,
                 anchor=tk.NW
             )
+
+    def _update_metrics(self, s, t):
+        if hasattr(self, 'ground_truth_mask_image'):
+            mask_true = np.array(self.ground_truth_mask_image)
+            mask_ours = generate_mask(s, t, mask_true.shape)
+            jm = jaccard_score(mask_true, mask_ours)
+            self._jaccard_metric.config(text='Jaccard: ' + str(jm))
+            cm = correctness_ratio(mask_true, mask_ours)
+            self._correctness_metric.config(text='Correctness ratio: ' + str(cm))
 
     # Event handlers
     def cursor_motion_handler(self, event):
@@ -262,6 +337,7 @@ class SegmentatorGui(tk.Frame):
             # Clear temp mask
             self._mask = Image.new('L', self.orig_image.size, 0)
             self._update_displayed_image()
+            self._update_metrics(s, t)
 
         if self._phase == 'initial':
             point_type_str = self._point_type.get()
@@ -279,7 +355,7 @@ if __name__ == '__main__':
     root = tk.Tk()
     root.title('Graph Image Segmentation')
     root.resizable(False, False)
-    root.geometry('800x600')
+    root.geometry('1200x800')
 
     app = SegmentatorGui(master=root)
     app.mainloop()
